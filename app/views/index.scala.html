@@ -1,7 +1,49 @@
-@(message: String)
+@(serverRunning: Boolean, players: List[String])
+<!DOCTYPE html>
 
-@main("Welcome to Play") {
-
-    @play20.welcome(message)
-
-}
+<html>
+	<head>
+		<title>Rampant I/O - TerraFirmaCraft Server Status</title>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<link rel="stylesheet" media="screen" href="@routes.Assets.at("stylesheets/main.css")">
+		<link rel="stylesheet" media="screen" href="@routes.Assets.at("lib/bootstrap/css/bootstrap.css")">
+	</head>
+	<body>
+		<div class="container-fluid">
+			<div class="row">
+				<div class="col-md-4 col-md-offset-4 col-sm-6 col-sm-offset-3">
+					<div class="panel panel-@if(serverRunning) {success} else {danger}">
+						<div class="panel-heading">
+							<h3 class="panel-title">Server is @if(serverRunning) {RUNNING} else {STOPPED}</h3>
+						</div>
+						@if(!serverRunning) {
+							<div class="panel-body">
+							@helper.form(routes.Application.start) {
+								<button type="submit" class="btn btn-lg btn-block btn-success">
+									Start Server</button>
+								<p class="help-block">
+									It may take up to a minute for the server to show as running.</p>
+							}
+							</div>
+						}
+					</div>
+					<div class="panel panel-info">
+						<div class="panel-heading">
+							<h3 class="panel-title">Online Players</h3>
+						</div>
+						<ul class="list-group">
+						@if(players.length > 0) {
+							@for(player <- players) {
+								<li class="list-group-item">@player</li>
+							}
+						} else {
+							<li class="list-group-item">No Players Online</li>
+						}
+						</ul>
+					</div>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>
