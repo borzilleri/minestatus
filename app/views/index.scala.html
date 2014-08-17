@@ -1,9 +1,8 @@
-@(servers: Seq[Application.MCServer])
+@(title: String, servers: Seq[Application.MCServer])
 <!DOCTYPE html>
-
 <html>
 	<head>
-		<title>Rampant I/O - TerraFirmaCraft Server Status</title>
+		<title>@title</title>
 		<meta charset="UTF-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1">
 		<link rel="stylesheet" media="screen" href="@routes.Assets.at("stylesheets/main.css")">

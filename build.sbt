@@ -2,7 +2,7 @@ name := """minecraft-rcon"""
 
 organization := "io.rampant.minecraft"
 
-version := "1.0"
+version := "1.1-SNAPSHOT"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala)
 
