@@ -1,7 +1,11 @@
 resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/"
 
+resolvers += "Era7 maven releases" at "http://releases.era7.com.s3.amazonaws.com"
+
 // The Play plugin
 addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.3.3")
+
+addSbtPlugin("ohnosequences" % "sbt-s3-resolver" % "0.11.0")
 
 // web plugins
 

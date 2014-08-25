@@ -1,37 +1,52 @@
 package controllers
 
+import akka.actor.Props
+import akka.pattern.ask
+import akka.util.Timeout
 import com.decodified.scalassh.SSH
 import com.typesafe.config.ConfigFactory
-import io.rampant.minecraft.rcon.RCon
+import io.rampant.minecraft.ServerInfo
+import io.rampant.minestatus._
 import play.api.Configuration
 import play.api.Play.current
+import play.api.cache.Cache
+import play.api.libs.concurrent.Akka
+import play.api.libs.concurrent.Execution.Implicits._
 import play.api.mvc._
 
 import scala.collection.JavaConverters._
-import scala.util.{Failure, Success, Try}
+import scala.concurrent.Future
+import scala.concurrent.duration._
 
 object Application extends Controller {
-	val rconLOG = play.api.Logger("rcon")
+	implicit val actorTimeout = Timeout(5 seconds)
+	val infoActor = Akka.system.actorOf(Props[StatusWorker], name = "infoActor")
+
 	val sshLOG = play.api.Logger("ssh")
 
+	val serverInfoCacheTimeout = 1.days
+
 	val pageTitle = current.configuration.getString("page.title").get
-	val rconDefaults = current.configuration.getConfig("server.defaults").get.underlying
-	val configuredServers = ConfigFactory.load().getConfigList("servers").asScala.map({ c => Configuration(c.withFallback(rconDefaults))})
+	val serverDefaults = current.configuration.getConfig("server.defaults").get.underlying
+	val configuredServers = ConfigFactory.load().getConfigList("servers").asScala.map({ c => Configuration(c.withFallback(serverDefaults))})
 
-	case class MCServer(id: String, name: String, running: Boolean, players: List[String])
+	case class MCServer(id: String, name: String, info: Option[ServerInfo], running: Boolean, cachedInfo: Boolean = false)
 
-	def index = Action {
-		val servers = configuredServers.map({ s =>
-			val users = Try(new RCon(s.getString("host").get, s.getInt("rcon.port").get, s.getString("rcon.password").get))
-				.flatMap({ c => Try(c.list().asScala.toList)})
-			users match {
-				case Failure(e) => rconLOG.warn("RCon Error", e)
-				case Success(v) => ;
-			}
-			val id = s.getString("id").get
-			MCServer(id, s.getString("name").getOrElse(id), users.isSuccess, users.getOrElse(List()))
-		})
-		Ok(views.html.index(pageTitle, servers))
+	def index = Action.async {
+		Future.sequence(configuredServers.map({ s =>
+			val host = s.getString("host").get
+			val port = s.getInt("query.port").get
+			val cacheKey = s"mcserver:$host:$port"
+			val serverId = s.getString("id").get
+			(infoActor ? QueryRequest(host, port)).map(_.asInstanceOf[QueryResponse]).map({
+				case OfflineResponse =>
+					val info = Cache.getAs[ServerInfo](cacheKey)
+					MCServer(serverId, s.getString("name").getOrElse(serverId), info, running = false, cachedInfo = info.isDefined);
+				case info: InfoResponse =>
+					Cache.set(cacheKey, info, serverInfoCacheTimeout)
+					MCServer(serverId, info.info.name, Some(info.info), running = true);
+			})
+		})).map({ s => Ok(views.html.index(pageTitle, s))})
 	}
 
 	def start(id: String) = Action {

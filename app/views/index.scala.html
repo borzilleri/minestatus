@@ -18,26 +18,32 @@
 							<h3 class="panel-title">@s.name</h3>
 						</div>
 						<div class="panel-body">
-						@if(!s.running) {
-							@helper.form(routes.Application.start(s.id)) {
-								<button type="submit" class="btn btn-lg btn-block btn-success">
-									Start Server</button>
-								<p class="help-block">
-									It may take up to a minute for the server to show as running.</p>
+							@if(!s.running) {
+								@helper.form(routes.Application.start(s.id)) {
+									<button type="submit" class="btn btn-lg btn-block btn-success">
+										Start Server</button>
+									<p class="help-block">
+										It may take up to a minute for the server to show as running.</p>
+								}
 							}
-						} else {
-							Server currently running.
-						}
+							@if(s.info.isDefined) {
+								<dl class="dl-horizontal">
+									<dt>Version:</dt>
+									<dd>@s.info.get.version</dd>
+								</dl>
+								<dl class="dl-horizontal">
+									<dt>Online Players:</dt>
+									<dd>@s.info.get.numPlayers / @s.info.get.maxPlayers</dd>
+								</dl>
+							}
 						</div>
-						<ul class="list-group">
-						@if(s.players.length > 0) {
-							@for(player <- s.players) {
+						@if(s.info.isDefined) {
+							<ul class="list-group">
+							@for(player <- s.info.get.players) {
 								<li class="list-group-item">@player</li>
 							}
-						} else {
-							<li class="list-group-item">No Players Online</li>
+							</ul>
 						}
-						</ul>
 					</div>
 				</div>
 			}
