@@ -1,6 +1,6 @@
 import play.PlayImport._
 
-name := """minecraft-rcon"""
+name := """minestatus"""
 
 organization := "io.rampant.minecraft"
 
