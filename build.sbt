@@ -15,8 +15,8 @@ scalaVersion := "2.11.1"
 resolvers += "spray repo" at "http://repo.spray.io"
 
 resolvers ++= Seq[Resolver](
-	s3resolver.value("Releases resolver", s3("rampant.io.releases")),
-	s3resolver.value("Snapshots resolver", s3("rampant.io.snapshots"))
+	"Rampant I/O Releases" at s3("rampant.io.releases").toHttp,
+	"Rampant I/O Snapshots" at s3("rampant.io.snapshots").toHttp
 )
 
 libraryDependencies ++= Seq(
