@@ -20,7 +20,7 @@ resolvers ++= Seq[Resolver](
 )
 
 libraryDependencies ++= Seq(
-	cache,
+	cache, ws,
 	"io.rampant.minecraft" %% "scala-rcon" % "0.1-SNAPSHOT" changing() withSources(),
 	"org.scala-tools.sbinary" %% "sbinary" % "0.4.3-SNAPSHOT" withSources(),
 	"org.webjars" % "bootstrap" % "3.2.0",

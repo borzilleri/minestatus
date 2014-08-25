@@ -12,6 +12,7 @@ import play.api.Play.current
 import play.api.cache.Cache
 import play.api.libs.concurrent.Akka
 import play.api.libs.concurrent.Execution.Implicits._
+import play.api.libs.ws._
 import play.api.mvc._
 
 import scala.collection.JavaConverters._
@@ -28,8 +29,15 @@ object Application extends Controller {
 
 	val pageTitle = current.configuration.getString("page.title").get
 	val serverDefaults = current.configuration.getConfig("server.defaults").get.underlying
+
 	val configuredServers = ConfigFactory.load().getConfigList("servers").asScala.map({ c => Configuration(c.withFallback(serverDefaults))})
 
+	val servers = current.configuration.getString("server.config.url").map({ url =>
+		WS.url(url).get().map({ r => Configuration(ConfigFactory.parseString(r.body)).getConfigList("servers")
+			.map(_.asScala.toList.collect({ case s => Configuration(s.underlying.withFallback(serverDefaults))}))
+		})
+	}).getOrElse(Future.successful(None))
+	
 	case class MCServer(id: String, name: String, info: Option[ServerInfo], running: Boolean, cachedInfo: Boolean = false)
 
 	def serverFromConfig(s: Configuration) = {
@@ -50,9 +58,17 @@ object Application extends Controller {
 	def findServerConfig(id: String) = configuredServers.find(_.getString("id").get.equalsIgnoreCase(id))
 
 	def index = Action.async {
+		servers.map(_.getOrElse(List[Configuration]())).flatMap({ list =>
+			Future.sequence(list.map(serverFromConfig)).map({ s => Ok(views.html.index(pageTitle, s))})
+		})
+	}
+
+	/*
+	def index = Action.async {
 		Future.sequence(configuredServers.map(serverFromConfig))
 			.map({ s => Ok(views.html.index(pageTitle, s))})
 	}
+	*/
 
 	def start(id: String) = Action {
 		findServerConfig(id) match {
