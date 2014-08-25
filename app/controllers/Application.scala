@@ -32,25 +32,30 @@ object Application extends Controller {
 
 	case class MCServer(id: String, name: String, info: Option[ServerInfo], running: Boolean, cachedInfo: Boolean = false)
 
+	def serverFromConfig(s: Configuration) = {
+		val host = s.getString("host").get
+		val port = s.getInt("query.port").get
+		val cacheKey = s"mcserver:$host:$port"
+		val serverId = s.getString("id").get
+		(infoActor ? QueryRequest(host, port)).map(_.asInstanceOf[QueryResponse]).map({
+			case OfflineResponse =>
+				val info = Cache.getAs[ServerInfo](cacheKey)
+				MCServer(serverId, s.getString("name").getOrElse(serverId), info, running = false, cachedInfo = info.isDefined);
+			case info: InfoResponse =>
+				Cache.set(cacheKey, info, serverInfoCacheTimeout)
+				MCServer(serverId, info.info.name, Some(info.info), running = true);
+		})
+	}
+
+	def findServerConfig(id: String) = configuredServers.find(_.getString("id").get.equalsIgnoreCase(id))
+
 	def index = Action.async {
-		Future.sequence(configuredServers.map({ s =>
-			val host = s.getString("host").get
-			val port = s.getInt("query.port").get
-			val cacheKey = s"mcserver:$host:$port"
-			val serverId = s.getString("id").get
-			(infoActor ? QueryRequest(host, port)).map(_.asInstanceOf[QueryResponse]).map({
-				case OfflineResponse =>
-					val info = Cache.getAs[ServerInfo](cacheKey)
-					MCServer(serverId, s.getString("name").getOrElse(serverId), info, running = false, cachedInfo = info.isDefined);
-				case info: InfoResponse =>
-					Cache.set(cacheKey, info, serverInfoCacheTimeout)
-					MCServer(serverId, info.info.name, Some(info.info), running = true);
-			})
-		})).map({ s => Ok(views.html.index(pageTitle, s))})
+		Future.sequence(configuredServers.map(serverFromConfig))
+			.map({ s => Ok(views.html.index(pageTitle, s))})
 	}
 
 	def start(id: String) = Action {
-		configuredServers.find(_.getString("id").get.equalsIgnoreCase(id)) match {
+		findServerConfig(id) match {
 			case None => NotFound("Unknown server: " + id)
 			case Some(s) =>
 				SSH(s.getString("host").get) { client =>
