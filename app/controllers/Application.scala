@@ -20,7 +20,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object Application extends Controller {
-	implicit val actorTimeout = Timeout(5 seconds)
+	implicit val actorTimeout = Timeout(10 seconds)
 	val infoActor = Akka.system.actorOf(Props[StatusWorker], name = "infoActor")
 
 	val sshLOG = play.api.Logger("ssh")

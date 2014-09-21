@@ -31,16 +31,16 @@ $(function() {
 		updateServerBlock(s);
 	});
 
-	$('button.start-server').on('click', function(e) {
+	$(document).on('click', 'button.start-server', function(e) {
 		e.preventDefault();
 
-		var $s = $(e.target).closest("server-info");
+		var $s = $(e.target).closest(".server-info");
 		var sId = $s.data("server-id");
 		$s.find('.panel-body').html(queryProgress);
 		$.post("/api/start/" + sId);
 		setTimeout(function() {
 			updateServerBlock($s);
-		}, 120000);
+		}, 10000);
 	});
 
 });
