@@ -4,7 +4,7 @@ name := """minestatus"""
 
 organization := "io.rampant.minecraft"
 
-version := "1.1-SNAPSHOT"
+version := "2.0"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala, SbtWeb)
 
