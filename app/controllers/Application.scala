@@ -7,15 +7,15 @@ import com.decodified.scalassh.SSH
 import com.typesafe.config.ConfigFactory
 import io.rampant.minecraft.ServerInfo
 import io.rampant.minestatus._
-import play.api.Configuration
 import play.api.Play.current
 import play.api.cache.Cache
 import play.api.libs.concurrent.Akka
 import play.api.libs.concurrent.Execution.Implicits._
+import play.api.libs.functional.syntax._
+import play.api.libs.json._
 import play.api.libs.ws._
 import play.api.mvc._
 
-import scala.collection.JavaConverters._
 import scala.concurrent.Future
 import scala.concurrent.duration._
 
@@ -25,42 +25,58 @@ object Application extends Controller {
 
 	val sshLOG = play.api.Logger("ssh")
 
+	val pageTitle = current.configuration.getString("page.title").get
+
+	case class ServerConfig(id: String, name: String, host: String, startCmd: Option[String])
+
+	case class RemoteInfo(info: Option[ServerInfo] = None, running: Boolean = false)
+
 	val serverInfoCacheTimeout = 1.days
 
-	val pageTitle = current.configuration.getString("page.title").get
-	val serverDefaults = current.configuration.getConfig("server.defaults").get.underlying
+	val servers = WS.url(ConfigFactory.load().getString("server.config.url")).get()
+		.map({ r => (r.json \ "servers").as[JsArray].value})
+		.map({ l => l.map({ s => s.as[ServerConfig]})})
 
-	val configuredServers = ConfigFactory.load().getConfigList("servers").asScala.map({ c => Configuration(c.withFallback(serverDefaults))})
+	def findServer(id: String) = servers.map({ l => l.find(_.id == id)})
 
-	val servers = current.configuration.getString("server.config.url").map({ url =>
-		WS.url(url).get().map({ r => Configuration(ConfigFactory.parseString(r.body)).getConfigList("servers")
-			.map(_.asScala.toList.collect({ case s => Configuration(s.underlying.withFallback(serverDefaults))}))
-		})
-	}).getOrElse(Future.successful(None))
-	
-	case class MCServer(id: String, name: String, info: Option[ServerInfo], running: Boolean, cachedInfo: Boolean = false)
-
-	def serverFromConfig(s: Configuration) = {
-		val host = s.getString("host").get
-		val port = s.getInt("query.port").get
-		val cacheKey = s"mcserver:$host:$port"
-		val serverId = s.getString("id").get
-		(infoActor ? QueryRequest(host, port)).map(_.asInstanceOf[QueryResponse]).map({
+	def queryServer(server: ServerConfig) = {
+		lazy val port = ConfigFactory.load().getInt("server.defaults.query.port")
+		lazy val cacheKey = s"mcserver:${server.host}:$port"
+		(infoActor ? QueryRequest(server.host, port)).map(_.asInstanceOf[QueryResponse]).map({
 			case OfflineResponse =>
-				val info = Cache.getAs[ServerInfo](cacheKey)
-				MCServer(serverId, s.getString("name").getOrElse(serverId), info, running = false, cachedInfo = info.isDefined);
+				RemoteInfo(info = Cache.getAs[ServerInfo](cacheKey))
 			case info: InfoResponse =>
 				Cache.set(cacheKey, info, serverInfoCacheTimeout)
-				MCServer(serverId, info.info.name, Some(info.info), running = true);
+				RemoteInfo(Some(info.info), running = true)
 		})
 	}
 
-	def findServerConfig(id: String) = configuredServers.find(_.getString("id").get.equalsIgnoreCase(id))
+	implicit val serverConfigReads: Reads[ServerConfig] = (
+		(JsPath \ "id").read[String] and
+			(JsPath \ "name").read[String] and
+			(JsPath \ "host").read[String] and
+			(JsPath \ "command").readNullable[String]
+		)(ServerConfig.apply _)
+
+	implicit val serverInfoWrites: Writes[ServerInfo] = (
+		(JsPath \ "name").write[String] and
+			(JsPath \ "version").write[String] and
+			(JsPath \ "gameId").write[String] and
+			(JsPath \ "gameType").write[String] and
+			(JsPath \ "map").write[String] and
+			(JsPath \ "numPlayers").write[Int] and
+			(JsPath \ "maxPlayers").write[Int] and
+			(JsPath \ "players").write[List[String]] and
+			(JsPath \ "plugins").write[String]
+		)(i => (i.name, i.version, i.gameId, i.gameType, i.map, i.numPlayers, i.maxPlayers, i.players, i.plugins))
+
+	implicit val remoteInfoWrite: Writes[RemoteInfo] = (
+		(JsPath \ "info").writeNullable[ServerInfo] and
+			(JsPath \ "running").write[Boolean]
+		)(i => (i.info, i.running))
 
 	def index = Action.async {
-		servers.map(_.getOrElse(List[Configuration]())).flatMap({ list =>
-			Future.sequence(list.map(serverFromConfig)).map({ s => Ok(views.html.index(pageTitle, s))})
-		})
+		servers.map({ l => Ok(views.html.index(pageTitle, l))})
 	}
 
 	/*
@@ -70,17 +86,31 @@ object Application extends Controller {
 	}
 	*/
 
-	def start(id: String) = Action {
-		findServerConfig(id) match {
+	def start(id: String) = Action.async {
+		findServer(id).map({
 			case None => NotFound("Unknown server: " + id)
 			case Some(s) =>
-				SSH(s.getString("host").get) { client =>
-					client.exec(s.getString("command").get) match {
-						case Right(v) => sshLOG.debug(v.stdOutAsString())
-						case Left(v) => sshLOG.error("SSH Error: " + v)
-					}
+				s.startCmd match {
+					case None => Forbidden
+					case Some(cmd) =>
+						SSH(s.host) { client =>
+							client.exec(cmd) match {
+								case Right(v) => sshLOG.debug(v.stdOutAsString())
+								case Left(v) => sshLOG.error("SSH Error: " + v)
+							}
+						}
+						Ok
 				}
-				Redirect(routes.Application.index)
-		}
+		})
+	}
+
+	def status(id: String) = Action.async {
+		findServer(id).flatMap({
+			case None => Future.successful(NotFound("Unknown server: " + id))
+			case Some(server) =>
+				queryServer(server).map({ info =>
+					Ok(Json.toJson(info))
+				})
+		})
 	}
 }
