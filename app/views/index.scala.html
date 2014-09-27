@@ -29,42 +29,10 @@
 			</div>
 		</div>
 
-		<script type="text/html" id="server-query">
-			<div class="progress">
-				<div class="progress-bar progress-bar-striped active server-query-progress"
-					role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
-				<span class="sr-only">Server query in progress…</span>
-			</div>
-		</div>
-		</script>
-		<script type="text/html" id="server-start">
-			<button type="submit" class="btn btn-lg btn-block btn-success start-server">
-			Start Server</button>
-			<p class="help-block">
-			It may take up to a minute to show the server as running.</p>
-		</script>
-		<script type="text/html" id="server-nostart">
-			<p>Server Offline, not configured for remote-start.</p>
-		</script>
-		<script type="text/html" id="info-block">
-			<% if(!running) { %>
-				<p>This information is cached, and may not be accurate.</p>
-			<% } %>
-			<dl class="dl-horizontal">
-				<dt>Version:</dt>
-				<dd><%=info.version%></dd>
-			</dl>
-			<dl class="dl-horizontal">
-				<dt>Online Players:</dt>
-				<dd><%=info.numPlayers%> / <%=info.maxPlayers%></dd>
-			</dl>
-		</script>
-		<script type="text/html" id="player-list">
-			<ul class="list-group">
-				<% _(players).each(function(player) { %>
-					<li class="list-group-item"><%=player%></li>
-				<% }); %>
-			</ul>
-		</script>
+		<script type="text/template" id="server-query"> @partials.queryProgress.render() </script>
+		<script type="text/template" id="server-start"> @partials.startServer.render() </script>
+		<script type="text/template" id="server-nostart"> @partials.notStartable.render() </script>
+		<script type="text/template" id="info-block"> @partials.serverInfo.render() </script>
+		<script type="text/template" id="player-list"> @partials.playerList.render() </script>
 	</body>
 </html>
