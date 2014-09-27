@@ -1,7 +1,10 @@
 package controllers
 
+import java.util.concurrent.TimeUnit
+
 import akka.actor.Props
 import akka.pattern.ask
+import akka.routing.FromConfig
 import akka.util.Timeout
 import com.decodified.scalassh.SSH
 import com.typesafe.config.ConfigFactory
@@ -20,10 +23,9 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 
 object Application extends Controller {
-	implicit val actorTimeout = Timeout(10 seconds)
-	val infoActor = Akka.system.actorOf(Props[StatusWorker], name = "infoActor")
+	implicit val actorTimeout = Timeout(current.configuration.getLong("server.actor.timeout").getOrElse(10), TimeUnit.SECONDS)
 
-	val sshLOG = play.api.Logger("ssh")
+	val serverInfoRouter = Akka.system.actorOf(Props[StatusWorker].withRouter(FromConfig()), "server-info-router")
 
 	val pageTitle = current.configuration.getString("page.title").get
 
@@ -42,7 +44,7 @@ object Application extends Controller {
 	def queryServer(server: ServerConfig) = {
 		lazy val port = ConfigFactory.load().getInt("server.defaults.query.port")
 		lazy val cacheKey = s"mcserver:${server.host}:$port"
-		(infoActor ? QueryRequest(server.host, port)).map(_.asInstanceOf[QueryResponse]).map({
+		(serverInfoRouter ? QueryRequest(server.host, port)).map(_.asInstanceOf[QueryResponse]).map({
 			case OfflineResponse =>
 				RemoteInfo(info = Cache.getAs[ServerInfo](cacheKey))
 			case info: InfoResponse =>
@@ -85,6 +87,8 @@ object Application extends Controller {
 			.map({ s => Ok(views.html.index(pageTitle, s))})
 	}
 	*/
+
+	val sshLOG = play.api.Logger("ssh")
 
 	def start(id: String) = Action.async {
 		findServer(id).map({
