@@ -1,4 +1,4 @@
-@(title: String, servers: Seq[Application.ServerConfig])
+@(title: String, servers: Seq[io.rampant.minestatus.Server])
 <!DOCTYPE html>
 <html>
 	<head>
@@ -18,7 +18,7 @@
 			<div class="row">
 			@for(s <- servers) {
 				<div class="col-md-4 col-sm-6">
-					<div class="panel panel-info server-info" data-server-id="@s.id" data-can-start="@s.startCmd.isDefined">
+					<div class="panel panel-info server-info" data-server-id="@s.id" data-can-start="@s.canStart">
 						<div class="panel-heading">
 							<h3 class="panel-title">@s.name</h3>
 						</div>
